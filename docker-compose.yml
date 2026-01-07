@@ -1,0 +1,70 @@
+services:
+  api:
+    build: .
+    container_name: fastapi_app
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - elasticsearch
+      - clickhouse
+    volumes:
+      - .:/app
+    restart: always
+
+  postgres:
+    image: postgres:15
+    container_name: postgres_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    volumes:
+      - ./elasticsearch/init:/docker-entrypoint-initdb.d
+      - es_data:/usr/share/elasticsearch/data
+    restart: always
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  es-init:
+    image: curlimages/curl:8.5.0
+    container_name: es_init
+    depends_on:
+      - elasticsearch
+    volumes:
+      - ./elasticsearch/init/init.sh:/init.sh
+    entrypoint: ["sh", "/init.sh"]
+    restart: "no"
+  clickhouse:
+    image: clickhouse/clickhouse-server:23
+    container_name: clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ./clickhouse/init:/docker-entrypoint-initdb.d
+      - clickhouse_data:/var/lib/clickhouse
+    restart: always
+
+volumes:
+  postgres_data:
+  es_data:
+  clickhouse_data:
